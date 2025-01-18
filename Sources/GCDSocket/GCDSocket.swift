@@ -82,8 +82,6 @@ public class GCDSocket {
   
   public func resume() {
     
-    source.setEventHandler( handler: nil)
-    
     source.setEventHandler { [self] in
 
       var result : Result<Data, ReadError>!
@@ -106,6 +104,7 @@ public class GCDSocket {
       }
       
     }
+    source.resume()
   }
   
 }
