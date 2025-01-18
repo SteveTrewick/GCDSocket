@@ -21,8 +21,5 @@ let package = Package(
         .target(
             name: "GCDSocket",
             dependencies: []),
-        .testTarget(
-            name: "GCDSocketTests",
-            dependencies: ["GCDSocket"]),
     ]
 )
