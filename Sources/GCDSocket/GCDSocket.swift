@@ -71,10 +71,23 @@ public class GCDSocket {
     }
   }
   
-  //MARK: async read handler
+  
+  
+  func close() {
+    
+    Darwin.close(sockFD)
+    
+    readQ.async { [self] in
+      dataHandler?( .failure(.userGTFO) )
+    }
+  }
+  
+  
+  
+  // MARK: async read handler
   
   public enum ReadError : Error {
-    case hostGTFO, other
+    case hostGTFO, userGTFO, other
   }
   
   public var dataHandler : ((Result<Data, ReadError>) -> Void)? = nil
@@ -92,8 +105,8 @@ public class GCDSocket {
       let count = read (sockFD, &buff, avail)
       
       switch count {
-        case   0              : result = .failure ( .hostGTFO); close(sockFD)
-        case   Int.min...(-1) : result = .failure ( .other   ); close(sockFD)
+        case   0              : result = .failure ( .hostGTFO); Darwin.close(sockFD)
+        case   Int.min...(-1) : result = .failure ( .other   ); Darwin.close(sockFD)
         default               : result = .success ( Data(bytes: &buff, count: avail) )
       }
       
