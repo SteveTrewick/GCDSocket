@@ -1,126 +1,89 @@
 import Foundation
 
+public enum GCDSocketError : Error {
+  case hostGTFO, userGTFO,
+       read(Int32),
+       write(Int32), bytesDropped(Int),
+       connect(Int32),
+       bind(Int32), listen(Int32), accept(Int32)
+}
 
-/*
- Basic ass socket using BSD sox and GCD, I know this should all be your fancy new
- async/await but later, m'kay
-*/
+
+public protocol GCDSocketAddress { init () }
+
+extension sockaddr_un : GCDSocketAddress { }
+extension sockaddr_in : GCDSocketAddress { }
+
+
+public struct GCDSocketDescriptor <T : GCDSocketAddress> {
+  let handle   : Int32
+  let sockAddr : T
+}
 
 
 public class GCDSocket {
   
+  public   let sockFD      : Int32
+  public   var readHandler :((Result<Data, GCDSocketError>) -> Void)? = nil
   
-  private       let FIONREAD : UInt          = 0x4004667f
-  private       let sockQ    : DispatchQueue = DispatchQueue(label: "sockQ") // TODO: add attribs
-  private       let readQ    : DispatchQueue = DispatchQueue(label: "readQ") // TODO: add attribs
-  private       let source   : DispatchSourceRead!
-  private (set) var sockFD   : Int32!
+  internal let FIONREAD    : UInt = 0x4004667f
+  internal let sockQ       : DispatchQueue = DispatchQueue(label: "sockQ" )
+  internal let source      : DispatchSourceRead
   
-  public init(protoFam: Int32, sockType: Int32) {
-    
-    self.sockFD = Darwin.socket(protoFam, sockType, 0)
-    self.source = DispatchSource.makeReadSource(fileDescriptor: sockFD, queue: sockQ)
+  
+  public init ( fd: Int32, handler: ((Result<Data, GCDSocketError>) -> Void)? = nil ) {
+    self.sockFD      = fd
+    self.source      = DispatchSource.makeReadSource(fileDescriptor: sockFD, queue: sockQ)
+    self.readHandler = handler
   }
   
-  
-  public func connect (domain path: String ) -> Bool {  // TODO: better errors? there's a lot of them, add later
-    
-    var address = sockaddr_un()
-    
-    path.withCString { ptr in
-      withUnsafeMutablePointer(to: &address.sun_path.0) { dest in
-          _ = strcpy(dest, ptr)
-      }
-    }
-
-    let conres = withUnsafePointer(to: &address) { addrBytes -> Int32 in
-      addrBytes.withMemoryRebound(to: sockaddr.self, capacity: 1) { saddr in
-        Darwin.connect(sockFD, saddr, socklen_t(MemoryLayout<sockaddr_un>.size))
-      }
-    }
-    
-    return conres == 0
-  }
-  
-  
-  
-  public func connect (localPort: UInt16) -> Bool {
-    
-    var address = sockaddr_in()
-    
-    address.sin_family      = sa_family_t(AF_INET)
-    address.sin_port        = in_port_t( localPort.bigEndian )
-    address.sin_addr.s_addr = INADDR_LOOPBACK.bigEndian
-
-    let conres = withUnsafePointer(to: &address) { addrBytes -> Int32 in
-      addrBytes.withMemoryRebound(to: sockaddr.self, capacity: 1) { saddr in
-        Darwin.connect(sockFD, saddr, socklen_t(MemoryLayout<sockaddr_un>.size))
-      }
-    }
-    
-    return conres == 0
-  }
-  
-  /*
-    keeping this sync for now, we may need async as well, wait and see.
-  */
-  public func write (data: Data) {
-    // NB we're aplatting this TODO: add (some) error handling
-    _ = data.withUnsafeBytes { bytes in
-      Darwin.write(sockFD, bytes.baseAddress, data.count)
-    }
-  }
-  
-  
-  
-  func close() {
-    
-    Darwin.close(sockFD)
-    
-    readQ.async { [self] in
-      dataHandler?( .failure(.userGTFO) )
-    }
-  }
-  
-  
-  
-  // MARK: async read handler
-  
-  public enum ReadError : Error {
-    case hostGTFO, userGTFO, other
-  }
-  
-  public var dataHandler : ((Result<Data, ReadError>) -> Void)? = nil
   
   
   public func resume() {
     
+    
     source.setEventHandler { [self] in
-
-      var result : Result<Data, ReadError>!
+    
+      var result : Result<Data, GCDSocketError>!
       
       var avail = Int(0)
-      _         = ioctl(sockFD, FIONREAD, &avail)
+      _         = ioctl ( sockFD, FIONREAD, &avail )
       var buff  = [UInt8](repeating: 0x00, count: avail)
-      let count = read (sockFD, &buff, avail)
+      let count = read ( sockFD, &buff, avail )
       
       switch count {
-        case   0              : result = .failure ( .hostGTFO); Darwin.close(sockFD)
-        case   Int.min...(-1) : result = .failure ( .other   ); Darwin.close(sockFD)
-        default               : result = .success ( Data(bytes: &buff, count: avail) )
+        case   0 : result = .failure ( .hostGTFO    ); Darwin.close ( sockFD)
+        case  -1 : result = .failure ( .read(errno) ); Darwin.close ( sockFD )
+        
+        default  : result = .success ( Data(bytes: &buff, count: avail) )
       }
       
-      readQ.async {
-        if let handler = dataHandler {
-          handler(result)
-        }
-      }
+      
+      readHandler?(result)
       
     }
-    source.resume()
+    source.resume()  // we definitely dont want to do this on a server
+  }
+  
+  
+  public func write(data: Data) {
+    
+    let wres = data.withUnsafeBytes { bytes in
+      Darwin.write(sockFD, bytes.baseAddress, data.count)
+    }
+    
+    guard wres == 0 else {
+      if wres == -1         { readHandler?(.failure(.write(errno))) }
+      if wres < data.count  { readHandler?(.failure(.bytesDropped(data.count - wres))) }
+      return
+    }
+    
+    
+  }
+  
+  public func close() {
+    Darwin.close(sockFD)
+    readHandler?( .failure(.userGTFO) )
   }
   
 }
-
-
-
