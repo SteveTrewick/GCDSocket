@@ -3,8 +3,9 @@ import Foundation
 
 public class GCDSocketClient<T: GCDSocketAddress> : GCDSocket, GCDSocketPointerMangler {
   
-  let descriptor : GCDSocketDescriptor<T>
+  public let descriptor : GCDSocketDescriptor<T>
 
+  public var connected: (()->Void)? = nil
   
   public init(descriptor: GCDSocketDescriptor<T> ) {
     self.descriptor = descriptor
@@ -24,6 +25,9 @@ public class GCDSocketClient<T: GCDSocketAddress> : GCDSocket, GCDSocketPointerM
     
     if conres != 0 {
       if let handler = self.readHandler { handler (.failure( .connect(errno)) ) }
+    }
+    else {
+      connected?()
     }
   }
 }

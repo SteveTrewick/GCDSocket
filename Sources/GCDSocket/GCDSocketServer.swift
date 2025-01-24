@@ -9,6 +9,7 @@ public class GCDSocketServer<T: GCDSocketAddress> : GCDSocket, GCDSocketPointerM
   public let descriptor : GCDSocketDescriptor<T>
   public let backlog    : Int32
   public var accept     : ((Result<GCDSocket, GCDSocketError>) -> Void)? = nil
+  public var bound      : (()->Void)? = nil
   
   private var accepting : Bool = false
   
@@ -38,6 +39,9 @@ public class GCDSocketServer<T: GCDSocketAddress> : GCDSocket, GCDSocketPointerM
         accepting = false
         return
       }
+      
+      // execute a block of code when we sucesfully binf, for, e.g. chmod
+      bound?()
       
       let lres = Darwin.listen(sockFD, backlog)
       if  lres != 0 {
