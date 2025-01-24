@@ -76,7 +76,7 @@ public class GCDSocketServer<T: GCDSocketAddress> : GCDSocket, GCDSocketPointerM
   
   public override func close() {
     accepting = false
-    Darwin.close(sockFD)
+    super.close()
   }
   
 }
