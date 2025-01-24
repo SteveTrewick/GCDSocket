@@ -1,6 +1,6 @@
 import Foundation
 
-public struct GCDSocketAPI {
+public struct GCDSocketConstructor {
   
   public enum SockType {
     case stream, datagram
