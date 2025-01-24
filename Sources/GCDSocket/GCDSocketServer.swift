@@ -1,6 +1,18 @@
 import Foundation
 
-
+/*
+ GCDSocketServer is a subclass of GCDSocket which adds server functionality
+ once the socket is bound and accepting it will call its 'accept' block
+ with an initialised GCDSocket for each client connecting.
+ 
+ it will also optionally run the block in 'bound' once it is sucessfully bound
+ so you can (for example) run a chmod or similar if you're a domain socket,
+ (which is exactly, in fact, why it's there) or do whatever stuff you might
+ need if you're a TCP/UDP sock.
+ 
+ GCDSocketServer will send any errors it might encounter to the 'accept' block
+ 
+*/
 
 
 public class GCDSocketServer<T: GCDSocketAddress> : GCDSocket, GCDSocketPointerMangler {
@@ -19,11 +31,19 @@ public class GCDSocketServer<T: GCDSocketAddress> : GCDSocket, GCDSocketPointerM
     self.descriptor = descriptor
     self.backlog    = backlog
     
-    super.init(fd: descriptor.handle)
+    super.init(sockFD: descriptor.handle)
   }
   
   
-  
+  /*
+    notice that we rejected the resume method and replaced it with our own,
+    this socket will not be doing any reading, it will be spawning legions
+    of baby sockets so we don't want the dispatch source or the read handler
+   
+    we will however use the socket queue to fork our server off into the
+    background.
+    
+  */
   public override func resume() {
     
     accepting = true
@@ -40,7 +60,7 @@ public class GCDSocketServer<T: GCDSocketAddress> : GCDSocket, GCDSocketPointerM
         return
       }
       
-      // execute a block of code when we sucesfully binf, for, e.g. chmod
+      // execute a block of code when we sucesfully bind, for, e.g. chmod
       bound?()
       
       let lres = Darwin.listen(sockFD, backlog)
@@ -67,7 +87,7 @@ public class GCDSocketServer<T: GCDSocketAddress> : GCDSocket, GCDSocketPointerM
           break
         }
         
-        accept?( .success(GCDSocket(fd: clisock) ) )
+        accept?( .success(GCDSocket(sockFD: clisock) ) )
         
       }
     }
@@ -77,6 +97,7 @@ public class GCDSocketServer<T: GCDSocketAddress> : GCDSocket, GCDSocketPointerM
   public func suspend() {
     accepting = false
   }
+  
   
   public override func close() {
     accepting = false

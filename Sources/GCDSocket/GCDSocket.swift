@@ -1,6 +1,11 @@
 import Foundation
 
+
+/*
+  various types of errors that can occur
+*/
 public enum GCDSocketError : Error {
+  
   case hostGTFO, userGTFO,
        read(Int32),
        write(Int32), bytesDropped(Int),
@@ -9,32 +14,53 @@ public enum GCDSocketError : Error {
 }
 
 
+/*
+  we really have to at least sort of constain the wild generic param on GCDSock and the descriptor,
+  add more as required
+*/
 public protocol GCDSocketAddress { init () }
 
 extension sockaddr_un : GCDSocketAddress { }
 extension sockaddr_in : GCDSocketAddress { }
 
 
+/*
+  wrapper for our handle and sockaddr
+*/
 public struct GCDSocketDescriptor <T : GCDSocketAddress> {
   let handle   : Int32
   let sockAddr : T
 }
 
 
+/*
+  base GCDSocket class, the client and server sockets inherit from this class.
+  NB that the socket only runs one queue so you should probably be asyncing
+  onto some other queue for your reads and writes.
+ 
+  basic straightforward GCD stuff from the olden days, we set up a dispatch source
+  and when data comes in we read it and pass it on, simples, mostly.
+ 
+  wrinkles include using FIONREAD to get the amount of data that is actually
+  available in the read, it is of course #defined in the c headers so not
+  imported to swift
+ 
+*/
+
 public class GCDSocket {
   
   public   let sockFD      : Int32
-  public   var readHandler :((Result<Data, GCDSocketError>) -> Void)? = nil
+  public   var dataHandler : ((Result<Data, GCDSocketError>) -> Void)? = nil
   
   internal let FIONREAD    : UInt = 0x4004667f
   internal let sockQ       : DispatchQueue = DispatchQueue(label: "sockQ" )
   internal let source      : DispatchSourceRead
   
   
-  public init ( fd: Int32, handler: ((Result<Data, GCDSocketError>) -> Void)? = nil ) {
-    self.sockFD      = fd
-    self.source      = DispatchSource.makeReadSource(fileDescriptor: sockFD, queue: sockQ)
-    self.readHandler = handler
+  public init ( sockFD: Int32, handler: ((Result<Data, GCDSocketError>) -> Void)? = nil ) {
+    self.sockFD      = sockFD
+    self.source      = DispatchSource.makeReadSource ( fileDescriptor: sockFD, queue: sockQ )
+    self.dataHandler = handler
   }
   
   
@@ -59,10 +85,10 @@ public class GCDSocket {
       }
       
       
-      readHandler?(result)
+      dataHandler?(result)
       
     }
-    source.resume()  // we definitely dont want to do this on a server
+    source.resume()
   }
   
   
@@ -73,8 +99,8 @@ public class GCDSocket {
     }
     
     guard wres == 0 else {
-      if wres == -1         { readHandler?(.failure(.write(errno))) }
-      if wres < data.count  { readHandler?(.failure(.bytesDropped(data.count - wres))) }
+      if wres == -1         { dataHandler?(.failure(.write(errno))) }
+      if wres < data.count  { dataHandler?(.failure(.bytesDropped(data.count - wres))) }
       return
     }
     
@@ -83,7 +109,7 @@ public class GCDSocket {
   
   public func close() {
     Darwin.close(sockFD)
-    readHandler?( .failure(.userGTFO) )
+    dataHandler?( .failure(.userGTFO) )
   }
   
 }
