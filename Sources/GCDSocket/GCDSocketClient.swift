@@ -43,15 +43,18 @@ public class GCDSocketClient<T: GCDSocketAddress> : GCDSocket, GCDSocketPointerM
     
     resume()
     
-    let conres = rebound(from: descriptor.sockAddr) { saddr, slen in
-      Darwin.connect(descriptor.handle, saddr, slen)
-    }
-    
-    if conres != 0 {
-      if let handler = self.dataHandler { handler (.failure( .connect(errno)) ) }
-    }
-    else {
-      connected?()
-    }
+    sockQ.async { [self] in
+      
+      let conres = rebound(from: descriptor.sockAddr) { saddr, slen in
+        Darwin.connect(descriptor.handle, saddr, slen)
+      }
+      
+      if conres != 0 {
+        if let handler = dataHandler { handler (.failure( .connect(errno)) ) }
+      }
+      else {
+        connected?()
+      }
+  }
   }
 }
