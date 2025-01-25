@@ -44,9 +44,10 @@ domainSocket.write ( data: "hello".data(using: .utf8)! )
 
 RunLoop.current.run()
 
+/*
 The quick brown fox jumped over the lazy dog everyone clapped, except the dog, because he was lazy, also I don't think dogs can clap, because you know, hands?
 hello
-
+*/
 
 ```
 
