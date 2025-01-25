@@ -98,7 +98,7 @@ localTCPServer.resume()
 
 ```
 
-What if we ant to get a bit more sophisticated, like building an intercepting proxy server
+What if we want to get a bit more sophisticated, like building an intercepting proxy server
 so we can, for instance, MITM macOS usbmuxd and snoop on all the fun things that are going 
 on between the mac and the services on our iPhone? This one is obvioulsy a domain socket
 version but you can do this with any of the sockets, though you may have to do some more
@@ -175,7 +175,7 @@ server.resume()
 
 
 /*
-muxd (32) -> phone (71) : 490 bytes
+client (32) -> usbmuxd (71) : 490 bytes
 ea 01 00 00 01 00 00 00 08 00 00 00 06 00 00 00  ................
 3c 3f 78 6d 6c 20 76 65 72 73 69 6f 6e 3d 22 31  <?xml.version="1
 2e 30 22 20 65 6e 63 6f 64 69 6e 67 3d 22 55 54  .0".encoding="UT
