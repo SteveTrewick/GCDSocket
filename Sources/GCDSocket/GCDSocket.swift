@@ -82,7 +82,7 @@ public class GCDSocket {
       var buff  = [UInt8](repeating: 0x00, count: avail)
       let count = read ( sockFD, &buff, avail )
       
-      switch count {
+      switch count {  // NB that if we don't close the sock when we error out, we get a nasty spinlock
         case   0 : result = .failure ( .hostGTFO    ); Darwin.close ( sockFD )
         case  -1 : result = .failure ( .read(errno) ); Darwin.close ( sockFD )
         
@@ -96,6 +96,10 @@ public class GCDSocket {
   }
   
   
+  /*
+    write and close both touch sockFD which is managed by the dispatch source, so we
+    wrap these ops in the queue as well.
+  */
 
   public func write ( data: Data ) {
     
