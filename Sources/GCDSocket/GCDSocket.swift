@@ -15,7 +15,7 @@ public enum GCDSocketError : Error {
 
 
 /*
-  we really have to at least sort of constain the wild generic param on GCDSock and the descriptor,
+  we really have to at least sort of constrain the wild generic param on GCDSock and the descriptor,
   add more as required
 */
 public protocol GCDSocketAddress { init () }
@@ -36,7 +36,10 @@ public struct GCDSocketDescriptor <T : GCDSocketAddress> {
 /*
   base GCDSocket class, the client and server sockets inherit from this class.
   NB that the socket only runs one queue so you should probably be asyncing
-  onto some other queue for your reads and writes.
+  onto some other queue for your data processing and writes.
+ 
+  writes are synchronous on whatever context you call them in, write errors are
+  delivered to the handler on the socket's queue
  
   basic straightforward GCD stuff from the olden days, we set up a dispatch source
   and when data comes in we read it and pass it on, simples, mostly.
@@ -78,7 +81,7 @@ public class GCDSocket {
       let count = read ( sockFD, &buff, avail )
       
       switch count {
-        case   0 : result = .failure ( .hostGTFO    ); Darwin.close ( sockFD)
+        case   0 : result = .failure ( .hostGTFO    ); Darwin.close ( sockFD )
         case  -1 : result = .failure ( .read(errno) ); Darwin.close ( sockFD )
         
         default  : result = .success ( Data(bytes: &buff, count: avail) )
