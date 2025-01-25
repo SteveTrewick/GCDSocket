@@ -7,12 +7,12 @@ GCD is an ancient technology at this point, but I needed a quick and lightweight
 library to poke some sockets (primarily domain sockets in my case) and this is what 
 happened.
 
-If you need anything more complex than hacking around local domain and IP4 sockets
+If you need anything more complex than hacking around local domain and IPV4 sockets
 this is not the library for you, you want something bigger, better, more sophisticated
 and likely to be maintained after I get done with the current thing and get bored.
 
 
-Anyway, let's have some examples
+Anyway, let's have some examples!
 
 
 ## Unix Domain Client
@@ -98,13 +98,25 @@ localTCPServer.resume()
 
 ```
 
+## A Brief Note On GCD Queues
+
+Each GCDSocket instance maintains a single queue. Any ops which touch the socket
+file desriptor will be processed on this queue, including writing to and closing 
+the socket. Modern swift would of course use actors and async/await for this but GCD
+is an old friend, so. Anyhoo, until I get around to rewriting it like that (as is inevitable),
+you have the one queue so if you have any appreciable amount of processing to do between your
+read callbacks you may wish to marshall it off somewhere.  All errors and status notifications
+are delivered into the dataHandler callback.
+ 
+
+
+## Intercepting Proxy Server
+
 What if we want to get a bit more sophisticated, like building an intercepting proxy server
 so we can, for instance, MITM macOS usbmuxd and snoop on all the fun things that are going 
 on between the mac and the services on our iPhone? This one is obvioulsy a domain socket
 version but you can do this with any of the sockets, though you may have to do some more
-sophisticated things to properly track a proto, here we are just going to dump it to hex
-
-## Intercepting Proxy Server
+sophisticated things to properly track a proto, here we are just going to dump it to hex.
 
 ```swift
 
