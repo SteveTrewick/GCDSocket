@@ -35,11 +35,13 @@ public struct GCDSocketDescriptor <T : GCDSocketAddress> {
 
 /*
   base GCDSocket class, the client and server sockets inherit from this class.
-  NB that the socket only runs one queue so you should probably be asyncing
-  onto some other queue for your data processing and writes.
+  NB that the socket only runs one queue so if you have substantial processing
+  to do in yur handler, you may wish to marshall it off somewhere else.
  
-  writes are synchronous on whatever context you call them in, write errors are
-  delivered to the handler on the socket's queue
+  reads, writes and closes are all done async on the socket's queue to prevent
+  non queue access stomping on the file descriptor.
+ 
+  errors are directed to the handler on the same queue.
  
   basic straightforward GCD stuff from the olden days, we set up a dispatch source
   and when data comes in we read it and pass it on, simples, mostly.
@@ -87,7 +89,6 @@ public class GCDSocket {
         default  : result = .success ( Data(bytes: &buff, count: avail) )
       }
       
-      
       dataHandler?(result)
       
     }
@@ -95,24 +96,27 @@ public class GCDSocket {
   }
   
   
-  public func write(data: Data) {
+
+  public func write ( data: Data ) {
     
-    let wres = data.withUnsafeBytes { bytes in
-      Darwin.write(sockFD, bytes.baseAddress, data.count)
+    sockQ.async { [self] in
+      let wres = data.withUnsafeBytes { bytes in
+        Darwin.write(sockFD, bytes.baseAddress, data.count)
+      }
+      
+      guard wres == 0 else {
+        if wres == -1         { dataHandler?(.failure(.write(errno))) }
+        if wres < data.count  { dataHandler?(.failure(.bytesDropped(data.count - wres))) }
+        return
+      }
     }
-    
-    guard wres == 0 else {
-      if wres == -1         { dataHandler?(.failure(.write(errno))) }
-      if wres < data.count  { dataHandler?(.failure(.bytesDropped(data.count - wres))) }
-      return
-    }
-    
-    
   }
   
   public func close() {
-    Darwin.close(sockFD)
-    dataHandler?( .failure(.userGTFO) )
+    sockQ.async { [self] in
+      Darwin.close ( sockFD )
+      dataHandler? ( .failure(.userGTFO) )
+    }
   }
   
 }
