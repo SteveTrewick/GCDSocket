@@ -21,14 +21,14 @@ import Foundation
   oh, GCDSocketPointerMangler provides the 'rebound' method as a default implementation
   of a protocol, just for funsies
  
-  GCDSocketClient will send any errors it encounters to the dataHandler block
+  GCDSocketClient
  
 */
 
 public class GCDSocketClient<T: GCDSocketAddress> : GCDSocket, GCDSocketPointerMangler {
   
   public let descriptor : GCDSocketDescriptor<T>
-  public var connected: (()->Void)? = nil
+  public var connected: ((Bool)->Void)? = nil
   
   
   public init(descriptor: GCDSocketDescriptor<T> ) {
@@ -49,12 +49,11 @@ public class GCDSocketClient<T: GCDSocketAddress> : GCDSocket, GCDSocketPointerM
         Darwin.connect(descriptor.handle, saddr, slen)
       }
       
-      if conres != 0 {
-        if let handler = dataHandler { handler (.failure( .connect(errno)) ) }
-      }
-      else {
-        connected?()
-      }
+      // errors go down the pipe. just wanna know if we connect
+      if conres == 0 { connected?(true) }
+      else           { connected?(false)}
+      
+    }
   }
-  }
+
 }
